@@ -62,6 +62,41 @@ class LObj {
     data.subr = subr;
   }
 
+  override string toString() {
+    if (tag == Type.Nil) {
+      return "nil";
+    } else if (tag == Type.Num) {
+      return to!string(data.num);
+    } else if (tag == Type.Sym) {
+      return data.str;
+    } else if (tag == Type.Error) {
+      return "<error: " ~ data.str ~ ">";
+    } else if (tag == Type.Subr) {
+      return "<subr>";
+    } else if (tag == Type.Expr) {
+      return "<expr>";
+    }
+    return listToString(this);
+  }
+
+  private string listToString(LObj obj) {
+    string ret = "";
+    bool first = true;
+    while (obj.tag == Type.Cons) {
+      if (first) {
+        first = false;
+      } else {
+        ret ~= " ";
+      }
+      ret ~= obj.data.cons.car.toString();
+      obj = obj.data.cons.cdr;
+    }
+    if (obj.tag == Type.Nil) {
+      return "(" ~ ret ~ ")";
+    }
+    return "(" ~ ret ~ " . " ~ obj.toString() ~ ")";
+  }
+
   Type tag;
   Data data;
 }
@@ -76,6 +111,21 @@ LObj makeSym(string str) {
     sym_table[str] = new LObj(Type.Sym, str);
   }
   return sym_table[str];
+}
+
+LObj makeCons(LObj a, LObj d) {
+  return new LObj(Type.Cons, a, d);
+}
+
+LObj nreverse(LObj lst) {
+  LObj ret = kNil;
+  while (lst.tag == Type.Cons) {
+    LObj tmp = lst.data.cons.cdr;
+    lst.data.cons.cdr = ret;
+    ret = lst;
+    lst = tmp;
+  }
+  return ret;
 }
 
 bool isSpace(char c) {
@@ -125,18 +175,43 @@ ParseState readAtom(string str) {
   return new ParseState(makeNumOrSym(str), next);
 }
 
+ParseState parseError(string e) {
+  return new ParseState(new LObj(Type.Error, e), "");
+}
+
 ParseState read(string str) {
   str = skipSpaces(str);
   if (str.length == 0) {
-    return new ParseState(new LObj(Type.Error, "empty input"), "");
+    return parseError("empty input");
   } else if (str[0] == kRPar) {
-    return new ParseState(new LObj(Type.Error, "invalid syntax: " ~ str), "");
+    return parseError("invalid syntax: " ~ str);
   } else if (str[0] == kLPar) {
-    return new ParseState(new LObj(Type.Error, "noimpl"), "");
+    return readList(str[1..$]);
   } else if (str[0] == kQuote) {
-    return new ParseState(new LObj(Type.Error, "noimpl"), "");
+    ParseState tmp = read(str[1..$]);
+    return new ParseState(makeCons(makeSym("quote"), makeCons(tmp.obj, kNil)),
+                          tmp.next);
   }
   return readAtom(str);
+}
+
+ParseState readList(string str) {
+  LObj ret = kNil;
+  while (true) {
+    str = skipSpaces(str);
+    if (str.length == 0) {
+      return parseError("unfinished parenthesis");
+    } else if (str[0] == kRPar) {
+      break;
+    }
+    ParseState tmp = read(str);
+    if (tmp.obj.tag == Type.Error) {
+      return tmp;
+    }
+    ret = makeCons(tmp.obj, ret);
+    str = tmp.next;
+  }
+  return new ParseState(nreverse(ret), str[1..$]);
 }
 
 void main() {
@@ -144,7 +219,7 @@ void main() {
   string line;
   write("> ");
   while ((line = readln()).length > 0) {
-    write(read(line).obj.tag);
+    write(read(line).obj);
     write("\n> ");
   }
 }
