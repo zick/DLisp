@@ -289,6 +289,16 @@ LObj eval(LObj obj, LObj env) {
     LObj sym = safeCar(args);
     addToEnv(sym, expr, g_env);
     return sym;
+  } else if (op == makeSym("setq")) {
+    LObj val = eval(safeCar(safeCdr(args)), env);
+    LObj sym = safeCar(args);
+    LObj bind = findVar(sym, env);
+    if (bind == kNil) {
+      addToEnv(sym, val, g_env);
+    } else {
+      bind.data.cons.cdr = val;
+    }
+    return val;
   }
   return apply(eval(op, env), evlis(args, env), env);
 }
