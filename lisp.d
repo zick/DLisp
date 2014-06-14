@@ -100,7 +100,7 @@ class LObj {
   Type tag;
   Data data;
 }
-LObj kNil;  // Should be initialized in main.
+LObj kNil;  // Should be initialized in Init().
 
 LObj[string] sym_table;
 LObj makeSym(string str) {
@@ -150,7 +150,7 @@ LObj makeNumOrSym(string str) {
   int num;
   Exception e = collectException(num = to!int(str));
   if (e) {
-    return new LObj(Type.Sym, str);
+    return makeSym(str);
   }
   return new LObj(Type.Num, num);
 }
@@ -214,12 +214,51 @@ ParseState readList(string str) {
   return new ParseState(nreverse(ret), str[1..$]);
 }
 
-void main() {
+LObj findVar(LObj sym, LObj env) {
+  while (env.tag == Type.Cons) {
+    LObj alist = env.data.cons.car;
+    while (alist.tag == Type.Cons) {
+      if (alist.data.cons.car.data.cons.car == sym) {
+        return alist.data.cons.car;
+      }
+      alist = alist.data.cons.cdr;
+    }
+    env = env.data.cons.cdr;
+  }
+  return kNil;
+}
+
+LObj g_env;  // Should be initialized in Init().
+
+void addToEnv(LObj sym, LObj val, LObj env) {
+  env.data.cons.car = makeCons(makeCons(sym, val), env.data.cons.car);
+}
+
+LObj eval(LObj obj, LObj env) {
+  if (obj.tag == Type.Nil || obj.tag == Type.Num || obj.tag == Type.Error) {
+    return obj;
+  } else if (obj.tag == Type.Sym) {
+    LObj bind = findVar(obj, env);
+    if (bind == kNil) {
+      return new LObj(Type.Error, obj.data.str ~ " has no value");
+    }
+    return bind.data.cons.cdr;
+  }
+  return new LObj(Type.Error, "noimpl");
+}
+
+void Init() {
   kNil = new LObj(Type.Nil);
+  g_env = makeCons(kNil, kNil);
+  addToEnv(makeSym("t"), makeSym("t"), g_env);
+}
+
+void main() {
+  Init();
   string line;
   write("> ");
   while ((line = readln()).length > 0) {
-    write(read(line).obj);
+    write(eval(read(line).obj, g_env));
     write("\n> ");
   }
 }
