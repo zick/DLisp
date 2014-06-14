@@ -102,6 +102,20 @@ class LObj {
 }
 LObj kNil;  // Should be initialized in Init().
 
+LObj safeCar(LObj obj) {
+  if (obj.tag == Type.Cons) {
+    return obj.data.cons.car;
+  }
+  return kNil;
+}
+
+LObj safeCdr(LObj obj) {
+  if (obj.tag == Type.Cons) {
+    return obj.data.cons.cdr;
+  }
+  return kNil;
+}
+
 LObj[string] sym_table;
 LObj makeSym(string str) {
   if (str == "nil") {
@@ -244,12 +258,62 @@ LObj eval(LObj obj, LObj env) {
     }
     return bind.data.cons.cdr;
   }
-  return new LObj(Type.Error, "noimpl");
+
+  LObj op = safeCar(obj);
+  LObj args = safeCdr(obj);
+  if (op == makeSym("quote")) {
+    return safeCar(args);
+  } else if (op == makeSym("if")) {
+    if (eval(safeCar(args), env) == kNil) {
+      return eval(safeCar(safeCdr(safeCdr(args))), env);
+    }
+    return eval(safeCar(safeCdr(args)), env);
+  }
+  return apply(eval(op, env), evlis(args, env), env);
+}
+
+LObj evlis(LObj lst, LObj env) {
+  LObj ret = kNil;
+  while (lst.tag == Type.Cons) {
+    LObj elm = eval(lst.data.cons.car, env);
+    if (elm.tag == Type.Error) {
+      return elm;
+    }
+    ret = makeCons(elm, ret);
+    lst = lst.data.cons.cdr;
+  }
+  return nreverse(ret);
+}
+
+LObj apply(LObj fn, LObj args, LObj env) {
+  if (fn.tag == Type.Error) {
+    return fn;
+  } else if (args.tag == Type.Error) {
+    return args;
+  } else if (fn.tag == Type.Subr) {
+    return fn.data.subr(args);
+  }
+  return new LObj(Type.Error, fn.toString() ~ " is not function");
+}
+
+LObj subrCar(LObj args) {
+  return safeCar(safeCar(args));
+}
+
+LObj subrCdr(LObj args) {
+  return safeCdr(safeCar(args));
+}
+
+LObj subrCons(LObj args) {
+  return makeCons(safeCar(args), safeCar(safeCdr(args)));
 }
 
 void Init() {
   kNil = new LObj(Type.Nil);
   g_env = makeCons(kNil, kNil);
+  addToEnv(makeSym("car"), new LObj(Type.Subr, &subrCar), g_env);
+  addToEnv(makeSym("cdr"), new LObj(Type.Subr, &subrCdr), g_env);
+  addToEnv(makeSym("cons"), new LObj(Type.Subr, &subrCons), g_env);
   addToEnv(makeSym("t"), makeSym("t"), g_env);
 }
 
