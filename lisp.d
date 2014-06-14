@@ -351,12 +351,93 @@ LObj subrCons(LObj args) {
   return makeCons(safeCar(args), safeCar(safeCdr(args)));
 }
 
+LObj subrEq(LObj args) {
+  LObj x = safeCar(args);
+  LObj y = safeCar(safeCdr(args));
+  if (x.tag == Type.Num && y.tag == Type.Num) {
+    if (x.data.num == y.data.num) {
+      return makeSym("t");
+    }
+    return kNil;
+  } else if (x == y) {
+    return makeSym("t");
+  }
+  return kNil;
+}
+
+LObj subrAtom(LObj args) {
+  if (safeCar(args).tag == Type.Cons) {
+    return kNil;
+  }
+  return makeSym("t");
+}
+
+LObj subrNumberp(LObj args) {
+  if (safeCar(args).tag == Type.Num) {
+    return makeSym("t");
+  }
+  return kNil;
+}
+
+LObj subrSymbolp(LObj args) {
+  if (safeCar(args).tag == Type.Sym) {
+    return makeSym("t");
+  }
+  return kNil;
+}
+
+LObj subrAddOrMul(LObj args, int function(int, int) fn, int init_val) {
+  int ret = init_val;
+  while (args.tag == Type.Cons) {
+    if (args.data.cons.car.tag != Type.Num) {
+      return new LObj(Type.Error, "wrong type");
+    }
+    ret = fn(ret, args.data.cons.car.data.num);
+    args = args.data.cons.cdr;
+  }
+  return new LObj(Type.Num, ret);
+}
+LObj subrAdd(LObj args) {
+  return subrAddOrMul(args, function(int x, int y) { return x + y; }, 0);
+}
+LObj subrMul(LObj args) {
+  return subrAddOrMul(args, function(int x, int y) { return x * y; }, 1);
+}
+
+LObj subrSubOrDivOrMod(LObj args, int function(int, int) fn) {
+  LObj x = safeCar(args);
+  LObj y = safeCar(safeCdr(args));
+  if (x.tag != Type.Num || y.tag != Type.Num) {
+    return new LObj(Type.Error, "wrong type");
+  }
+  return new LObj(Type.Num, fn(x.data.num, y.data.num));
+}
+LObj subrSub(LObj args) {
+  return subrSubOrDivOrMod(args, function(int x, int y) { return x - y; });
+}
+LObj subrDiv(LObj args) {
+  return subrSubOrDivOrMod(args, function(int x, int y) { return x / y; });
+}
+LObj subrMod(LObj args) {
+  return subrSubOrDivOrMod(args, function(int x, int y) { return x % y; });
+}
+
 void Init() {
   kNil = new LObj(Type.Nil);
   g_env = makeCons(kNil, kNil);
   addToEnv(makeSym("car"), new LObj(Type.Subr, &subrCar), g_env);
   addToEnv(makeSym("cdr"), new LObj(Type.Subr, &subrCdr), g_env);
   addToEnv(makeSym("cons"), new LObj(Type.Subr, &subrCons), g_env);
+  addToEnv(makeSym("cons"), new LObj(Type.Subr, &subrCons), g_env);
+  addToEnv(makeSym("eq"), new LObj(Type.Subr, &subrEq), g_env);
+  addToEnv(makeSym("atom"), new LObj(Type.Subr, &subrAtom), g_env);
+  addToEnv(makeSym("numberp"), new LObj(Type.Subr, &subrNumberp), g_env);
+  addToEnv(makeSym("symbolp"), new LObj(Type.Subr, &subrSymbolp), g_env);
+  addToEnv(makeSym("+"), new LObj(Type.Subr, &subrAdd), g_env);
+  addToEnv(makeSym("*"), new LObj(Type.Subr, &subrMul), g_env);
+  addToEnv(makeSym("-"), new LObj(Type.Subr, &subrSub), g_env);
+  addToEnv(makeSym("/"), new LObj(Type.Subr, &subrDiv), g_env);
+  addToEnv(makeSym("mod"), new LObj(Type.Subr, &subrMod), g_env);
   addToEnv(makeSym("t"), makeSym("t"), g_env);
 }
 
