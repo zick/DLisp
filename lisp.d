@@ -284,6 +284,11 @@ LObj eval(LObj obj, LObj env) {
     return eval(safeCar(safeCdr(args)), env);
   } else if (op == makeSym("lambda")) {
     return makeExpr(args, env);
+  } else if (op == makeSym("defun")) {
+    LObj expr = makeExpr(safeCdr(args), env);
+    LObj sym = safeCar(args);
+    addToEnv(sym, expr, g_env);
+    return sym;
   }
   return apply(eval(op, env), evlis(args, env), env);
 }
