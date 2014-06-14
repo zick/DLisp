@@ -131,6 +131,10 @@ LObj makeCons(LObj a, LObj d) {
   return new LObj(Type.Cons, a, d);
 }
 
+LObj makeExpr(LObj args, LObj env) {
+  return new LObj(Type.Expr, safeCar(args), safeCdr(args), env);
+}
+
 LObj nreverse(LObj lst) {
   LObj ret = kNil;
   while (lst.tag == Type.Cons) {
@@ -140,6 +144,16 @@ LObj nreverse(LObj lst) {
     lst = tmp;
   }
   return ret;
+}
+
+LObj pairlis(LObj lst1, LObj lst2) {
+  LObj ret = kNil;
+  while (lst1.tag == Type.Cons && lst2.tag == Type.Cons) {
+    ret = makeCons(makeCons(lst1.data.cons.car, lst2.data.cons.car), ret);
+    lst1 = lst1.data.cons.cdr;
+    lst2 = lst2.data.cons.cdr;
+  }
+  return nreverse(ret);
 }
 
 bool isSpace(char c) {
@@ -268,6 +282,8 @@ LObj eval(LObj obj, LObj env) {
       return eval(safeCar(safeCdr(safeCdr(args))), env);
     }
     return eval(safeCar(safeCdr(args)), env);
+  } else if (op == makeSym("lambda")) {
+    return makeExpr(args, env);
   }
   return apply(eval(op, env), evlis(args, env), env);
 }
@@ -285,6 +301,15 @@ LObj evlis(LObj lst, LObj env) {
   return nreverse(ret);
 }
 
+LObj progn(LObj bdy, LObj env) {
+  LObj ret = kNil;
+  while (bdy.tag == Type.Cons) {
+    ret = eval(bdy.data.cons.car, env);
+    bdy = bdy.data.cons.cdr;
+  }
+  return ret;
+}
+
 LObj apply(LObj fn, LObj args, LObj env) {
   if (fn.tag == Type.Error) {
     return fn;
@@ -292,6 +317,9 @@ LObj apply(LObj fn, LObj args, LObj env) {
     return args;
   } else if (fn.tag == Type.Subr) {
     return fn.data.subr(args);
+  } else if (fn.tag == Type.Expr) {
+    return progn(fn.data.expr.bdy,
+                 makeCons(pairlis(fn.data.expr.args, args), fn.data.expr.env));
   }
   return new LObj(Type.Error, fn.toString() ~ " is not function");
 }
